@@ -1,12 +1,20 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-const { sendEmail } = require("../config/email");
 
 const register = async (req, res) => {
   try {
     const { email, password, age } = req.body;
-    const role = email === process.env.ADMIN_EMAIL ? "admin" : "user";
 
+    if (!email || !password || !age) {
+      return res.status(400).json({ error: "Email, password, and age are required." });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email is already registered." });
+    }
+
+    const role = email === process.env.ADMIN_EMAIL ? "admin" : "user";
     const user = new User({ email, password, age, role });
     await user.save();
 
@@ -23,16 +31,16 @@ const register = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
 
-    if (!user) {
-      throw new Error("Invalid login credentials");
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required." });
     }
+
+    const user = await User.findOne({ email });
+    if (!user) throw new Error("Invalid login credentials");
 
     const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      throw new Error("Invalid login credentials");
-    }
+    if (!isMatch) throw new Error("Invalid login credentials");
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1d",
